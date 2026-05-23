@@ -1,0 +1,67 @@
+import os
+import speech_recognition as sr
+from gtts import gTTS
+from openai import OpenAI
+
+# 1. Initialize the GitHub Models Client
+# Note: You will need to set up a free GitHub Personal Access Token (PAT)
+client = OpenAI(
+    base_url="https://azure.com",
+    api_key=os.environ.get("GITHUB_TOKEN")
+)
+
+def jarvis_speak(text):
+    """Converts text response to audio and plays it."""
+    print(f"JARVIS: {text}")
+    tts = gTTS(text=text, lang='en', tld='co.uk') # British accent
+    tts.save("response.mp3")
+    # Plays audio (Works locally. If using Codespaces, you will see the mp3 file generate)
+    os.system("mpg123 response.mp3" if os.name != "nt" else "start response.mp3")
+
+def jarvis_listen():
+    """Listens to microphone input and converts it to text."""
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("\nListening...")
+        recognizer.adjust_for_ambient_noise(source, duration=1)
+        audio = recognizer.listen(source)
+    
+    try:
+        user_text = recognizer.recognize_google(audio)
+        print(f"You: {user_text}")
+        return user_text
+    except sr.UnknownValueError:
+        return None
+    except sr.RequestError:
+        print("Network error.")
+        return None
+
+def main():
+    jarvis_speak("Systems online. How can I assist you today, Sir?")
+    
+    # Pre-set the JARVIS persona
+    system_prompt = "You are JARVIS, a highly sophisticated, witty, and loyal AI assistant. Address the user as Sir."
+    
+    while True:
+        user_input = jarvis_listen()
+        if not user_input:
+            continue
+            
+        if "power down" in user_input.lower() or "goodbye" in user_input.lower():
+            jarvis_speak("Powering down systems. Goodbye, Sir.")
+            break
+
+        # Send voice text to the GitHub Model (using Meta Llama 3 as the brain)
+        response = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input}
+            ],
+            model="meta-llama-3-70b-instruct"
+        )
+        
+        reply = response.choices[0].message.content
+        jarvis_speak(reply)
+
+if __name__ == "__main__":
+    main()
